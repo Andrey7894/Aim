@@ -1,0 +1,59 @@
+-- Создаем GUI local ScreenGui = Instance.new("ScreenGui") ScreenGui.Parent = game.CoreGui
+
+-- Главное меню local MainFrame = Instance.new("Frame") MainFrame.Parent = ScreenGui MainFrame.Size = UDim2.new(0, 200, 0, 300) MainFrame.Position = UDim2.new(0, 50, 0, 50) MainFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+
+local ToggleButton = Instance.new("TextButton") ToggleButton.Parent = MainFrame ToggleButton.Size = UDim2.new(0, 180, 0, 50) ToggleButton.Position = UDim2.new(0, 10, 0, 10) ToggleButton.Text = "Aim OFF" ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+
+local SortDropdown = Instance.new("TextLabel") SortDropdown.Parent = MainFrame SortDropdown.Size = UDim2.new(0, 180, 0, 50) SortDropdown.Position = UDim2.new(0, 10, 0, 70) SortDropdown.Text = "Сортировка: Дистанция" SortDropdown.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+
+local CircleToggle = Instance.new("TextButton") CircleToggle.Parent = MainFrame CircleToggle.Size = UDim2.new(0, 180, 0, 50) CircleToggle.Position = UDim2.new(0, 10, 0, 130) CircleToggle.Text = "Круг: Вкл" CircleToggle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+
+local RadiusSlider = Instance.new("TextLabel") RadiusSlider.Parent = MainFrame RadiusSlider.Size = UDim2.new(0, 180, 0, 50) RadiusSlider.Position = UDim2.new(0, 10, 0, 190) RadiusSlider.Text = "Радиус: 100" RadiusSlider.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+
+-- Настройки local aimEnabled = false local sortType = "distance" -- distance, health, crosshairProximity local aimRadius = 100 -- Радиус круга аима local showCircle = true -- Отображение круга local aimOffset = Vector2.new(0, 0) -- Смещение центра аима
+
+-- Функция создания круга аима local function createCircle() local circle = Drawing.new("Circle") circle.Color = Color3.new(1, 0, 0) circle.Thickness = 2 circle.Radius = aimRadius circle.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2) + aimOffset circle.Visible = showCircle return circle end local aimCircle = createCircle()
+
+-- Функция поиска ближайшего игрока в радиусе local function getNearestPlayer() local players = game:GetService("Players") local localPlayer = players.LocalPlayer local localCharacter = localPlayer.Character if not localCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") then return nil end
+
+local closestPlayer = nil
+local shortestDistance = math.huge
+
+for _, player in pairs(players:GetPlayers()) do
+    if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local targetHRP = player.Character.HumanoidRootPart
+        local screenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(targetHRP.Position)
+        local cursorPos = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2) + aimOffset
+        local distanceToCursor = (Vector2.new(screenPos.X, screenPos.Y) - cursorPos).Magnitude
+        local distanceToPlayer = (targetHRP.Position - localCharacter.HumanoidRootPart.Position).Magnitude
+        
+        if distanceToCursor <= aimRadius then -- Проверяем, в пределах ли круга
+            local ray = Ray.new(localCharacter.HumanoidRootPart.Position, (targetHRP.Position - localCharacter.HumanoidRootPart.Position).unit * distanceToPlayer)
+            local hitPart = workspace:FindPartOnRay(ray, localCharacter)
+            if hitPart and hitPart:IsDescendantOf(player.Character) then -- Проверяем, не за стеной ли цель
+                if sortType == "distance" and distanceToPlayer < shortestDistance then
+                    shortestDistance = distanceToPlayer
+                    closestPlayer = player
+                elseif sortType == "health" and player.Character:FindFirstChildOfClass("Humanoid").Health < shortestDistance then
+                    shortestDistance = player.Character:FindFirstChildOfClass("Humanoid").Health
+                    closestPlayer = player
+                elseif sortType == "crosshairProximity" and distanceToCursor < shortestDistance then
+                    shortestDistance = distanceToCursor
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+end
+return closestPlayer
+
+end
+
+-- Функция наведения local function aimAtNearestPlayer() local nearestPlayer = getNearestPlayer() if nearestPlayer and nearestPlayer.Character and nearestPlayer.Character:FindFirstChild("HumanoidRootPart") then local targetPosition = nearestPlayer.Character.HumanoidRootPart.Position workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, targetPosition) end end
+
+-- Основной цикл spawn(function() while true do wait(0.01) if aimEnabled then aimAtNearestPlayer() end aimCircle.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2) + aimOffset aimCircle.Visible = showCircle end end)
+
+-- Кнопки управления ToggleButton.MouseButton1Click:Connect(function() aimEnabled = not aimEnabled ToggleButton.Text = aimEnabled and "Aim ON" or "Aim OFF" end)
+
+CircleToggle.MouseButton1Click:Connect(function() showCircle = not showCircle CircleToggle.Text = showCircle and "Круг: Вкл" or "Круг: Выкл" end)
+
